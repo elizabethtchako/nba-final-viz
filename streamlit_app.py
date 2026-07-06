@@ -80,7 +80,7 @@ team_ppg = (
     .mean()
 )
 
-st.subheader("📊 Team Averages")
+st.subheader(f"{team} - Team Averages")
 
 c1, c2, c3, c4, c5 = st.columns(5)
 
@@ -373,6 +373,25 @@ team_stats = {
     "Points": filtered["points"].mean(),
 }
 
+# ---------------- NBA Data ----------------
+
+nba_stats = {
+    "3PT%": (
+        df["three_point_field_goals_made"].sum()
+        / df["three_point_field_goals_attempted"].sum() * 100
+        if df["three_point_field_goals_attempted"].sum() > 0 else 0
+    ),
+    "FG%": (
+        df["field_goals_made"].sum()
+        / df["field_goals_attempted"].sum() * 100
+        if df["field_goals_attempted"].sum() > 0 else 0
+    ),
+    "Blocks": df["blocks"].mean(),
+    "Steals": df["steals"].mean(),
+    "Assists": df["assists"].mean(),
+    "Rebounds": df["rebounds"].mean(),
+    "Points": df["points"].mean(),
+}
 
 # MAX VALUES FOR NORMALIZATION (TEAM + SEASON)
 
@@ -410,10 +429,11 @@ max_values = {
 }
 ### NORMALIZE DATA FOR SPIDER RADAR
 
-def normalize(player_stats, team_stats, max_values):
+def normalize(player_stats, team_stats, nba_stats, max_values):
 
     player_norm = {}
     team_norm = {}
+    nba_norm = {}
 
     for metric in player_stats:
 
@@ -422,18 +442,15 @@ def normalize(player_stats, team_stats, max_values):
         if max_val == 0:
             player_norm[metric] = 0
             team_norm[metric] = 0
+            nba_norm[metric] = 0
         else:
-            player_norm[metric] = (
-                player_stats[metric] / max_val
-            ) * 100
+            player_norm[metric] = player_stats[metric] / max_val * 100
+            team_norm[metric] = team_stats[metric] / max_val * 100
+            nba_norm[metric] = nba_stats[metric] / max_val * 100
 
-            team_norm[metric] = (
-                team_stats[metric] / max_val
-            ) * 100
+    return player_norm, team_norm, nba_norm
 
-    return player_norm, team_norm
-
-player_norm, team_norm = normalize(player_stats, team_stats, max_values)
+player_norm, team_norm, nba_norm = normalize(player_stats, team_stats, nba_stats, max_values)
 
 categories = list(player_stats.keys())
 
@@ -443,6 +460,9 @@ player_values.append(player_values[0])
 
 team_values = list(team_norm.values())
 team_values.append(team_values[0])
+
+nba_values = list(nba_norm.values())
+nba_values.append(nba_values[0])
 
 categories_closed = categories + [categories[0]]
 
@@ -463,7 +483,17 @@ with left:
 with right:
 
     fig = go.Figure()
-
+    # NBA Average
+    fig.add_trace(
+        go.Scatterpolar(
+            r=nba_values,
+            theta=categories_closed,
+            fill="toself",
+            name="NBA Average",
+            line=dict(color="#808080", width=2, dash="dot"),
+            opacity=0.55
+        )
+    )
     # Team
     fig.add_trace(
         go.Scatterpolar(
@@ -488,6 +518,7 @@ with right:
         )
     )
 
+
     fig.update_layout(
         polar=dict(
             radialaxis=dict(
@@ -495,9 +526,12 @@ with right:
             )
         ),
         legend=dict(
-            orientation="h",
-            y=1.08,
-            x=0.25
+            orientation="v",
+            x=1.05,
+            y=0.5,
+            xanchor="left",
+            yanchor="middle",
+            font=dict(size=12)
         ),
         margin=dict(l=30, r=30, t=20, b=20),
         height=300
