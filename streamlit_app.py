@@ -1,151 +1,506 @@
+# streamlit_app.py
 import streamlit as st
 import pandas as pd
-import math
-from pathlib import Path
+import altair as alt
+import plotly.graph_objects as go
 
-# Set the title and favicon that appear in the Browser's tab bar.
-st.set_page_config(
-    page_title='GDP dashboard',
-    page_icon=':earth_americas:', # This is an emoji shortcode. Could be a URL too.
+st.set_page_config(page_title="NBA Team Dashboard", layout="wide")
+
+df = pd.read_csv("rs_clean.csv")
+
+st.sidebar.title("Filters")
+teams = df["team_display_name"].dropna().drop_duplicates().sort_values().tolist()
+team = st.sidebar.selectbox("Select Team", teams)
+
+seasons = df["season"].dropna().drop_duplicates().sort_values().tolist()
+season = st.sidebar.selectbox("Season", seasons)
+
+filtered = df[(df["team_display_name"]==team)&(df["season"]==season)].copy()
+
+if filtered.empty:
+    st.warning("No data available.")
+    st.stop()
+
+logo = filtered["team_logo"].iloc[0]
+primary_color = "#" + str(filtered["team_color"].iloc[0]).zfill(6)
+secondary_color = "#" + str(filtered["team_alternate_color"].iloc[0]).zfill(6)
+
+# =====================================================
+# NBA HEADER
+# =====================================================
+
+nba_logo = "https://cdn.freebiesupply.com/logos/large/2x/nba-logo-png-transparent.png"
+
+st.markdown(
+    f"""
+    <div style="display:flex; align-items:center; margin-bottom:15px;">
+        <img src="{nba_logo}" width="70" style="margin-right:15px;">
+        <h1 style="margin:0; padding:0;">
+            NBA Dashboard
+        </h1>
+    </div>
+    """,
+    unsafe_allow_html=True,
 )
 
-# -----------------------------------------------------------------------------
-# Declare some useful functions.
+# -----------------------------------------------------
+# League Team PPG (remove duplicate player rows)
+# -----------------------------------------------------
 
-@st.cache_data
-def get_gdp_data():
-    """Grab GDP data from a CSV file.
+league_ppg = (
+    df[
+        ["game_id", "team_id", "team_score"]
+    ]
+    .drop_duplicates(subset=["game_id", "team_id"])
+    ["team_score"]
+    .mean()
+)
 
-    This uses caching to avoid having to read the file every time. If we were
-    reading from an HTTP endpoint instead of a file, it's a good idea to set
-    a maximum age to the cache with the TTL argument: @st.cache_data(ttl='1d')
-    """
+st.markdown("### League Averages")
 
-    # Instead of a CSV on disk, you could read from an HTTP endpoint here too.
-    DATA_FILENAME = Path(__file__).parent/'data/gdp_data.csv'
-    raw_gdp_df = pd.read_csv(DATA_FILENAME)
+c1, c2, c3, c4, c5 = st.columns(5)
 
-    MIN_YEAR = 1960
-    MAX_YEAR = 2022
+c1.metric("Team PPG", f"{league_ppg:.1f}")
+c2.metric("RPG", f"{df['rebounds'].mean():.1f}")
+c3.metric("APG", f"{df['assists'].mean():.1f}")
+c4.metric("SPG", f"{df['steals'].mean():.1f}")
+c5.metric("BPG", f"{df['blocks'].mean():.1f}")
 
-    # The data above has columns like:
-    # - Country Name
-    # - Country Code
-    # - [Stuff I don't care about]
-    # - GDP for 1960
-    # - GDP for 1961
-    # - GDP for 1962
-    # - ...
-    # - GDP for 2022
-    #
-    # ...but I want this instead:
-    # - Country Name
-    # - Country Code
-    # - Year
-    # - GDP
-    #
-    # So let's pivot all those year-columns into two: Year and GDP
-    gdp_df = raw_gdp_df.melt(
-        ['Country Code'],
-        [str(x) for x in range(MIN_YEAR, MAX_YEAR + 1)],
-        'Year',
-        'GDP',
+
+# -----------------------------------------------------
+# Selected Team PPG
+# -----------------------------------------------------
+
+team_ppg = (
+    filtered[
+        ["game_id", "team_id", "team_score"]
+    ]
+    .drop_duplicates(subset=["game_id", "team_id"])
+    ["team_score"]
+    .mean()
+)
+
+st.subheader("📊 Team Averages")
+
+c1, c2, c3, c4, c5 = st.columns(5)
+
+c1.metric("Team PPG", f"{team_ppg:.1f}")
+c2.metric("RPG", f"{filtered['rebounds'].mean():.1f}")
+c3.metric("APG", f"{filtered['assists'].mean():.1f}")
+c4.metric("SPG", f"{filtered['steals'].mean():.1f}")
+c5.metric("BPG", f"{filtered['blocks'].mean():.1f}")
+
+st.divider()
+
+
+
+# =====================================================
+# NBA HEADER
+# =====================================================
+title_col, logo_col = st.columns([8,1])
+with title_col:
+    st.markdown(f"<h1 style='color:{primary_color};'>{team.upper()}</h1>", unsafe_allow_html=True)
+with logo_col:
+    st.image(logo, width=90)
+
+st.markdown(f"<div style='height:10px;background:linear-gradient(to right,{primary_color},{secondary_color});border-radius:5px;'></div>", unsafe_allow_html=True)
+
+
+# =====================================================
+# STARTING FIVE
+# =====================================================
+st.subheader("🏀 Starting Five")
+
+starters = filtered[filtered["starter"] == True]
+
+starting_five = (
+    starters.groupby(
+        [
+            "athlete_display_name",
+            "athlete_position_abbreviation",
+            "athlete_headshot_href",
+        ]
     )
-
-    # Convert years from string to integers
-    gdp_df['Year'] = pd.to_numeric(gdp_df['Year'])
-
-    return gdp_df
-
-gdp_df = get_gdp_data()
-
-# -----------------------------------------------------------------------------
-# Draw the actual page
-
-# Set the title that appears at the top of the page.
-'''
-# :earth_americas: GDP dashboard
-
-Browse GDP data from the [World Bank Open Data](https://data.worldbank.org/) website. As you'll
-notice, the data only goes to 2022 right now, and datapoints for certain years are often missing.
-But it's otherwise a great (and did I mention _free_?) source of data.
-'''
-
-# Add some spacing
-''
-''
-
-min_value = gdp_df['Year'].min()
-max_value = gdp_df['Year'].max()
-
-from_year, to_year = st.slider(
-    'Which years are you interested in?',
-    min_value=min_value,
-    max_value=max_value,
-    value=[min_value, max_value])
-
-countries = gdp_df['Country Code'].unique()
-
-if not len(countries):
-    st.warning("Select at least one country")
-
-selected_countries = st.multiselect(
-    'Which countries would you like to view?',
-    countries,
-    ['DEU', 'FRA', 'GBR', 'BRA', 'MEX', 'JPN'])
-
-''
-''
-''
-
-# Filter the data
-filtered_gdp_df = gdp_df[
-    (gdp_df['Country Code'].isin(selected_countries))
-    & (gdp_df['Year'] <= to_year)
-    & (from_year <= gdp_df['Year'])
-]
-
-st.header('GDP over time', divider='gray')
-
-''
-
-st.line_chart(
-    filtered_gdp_df,
-    x='Year',
-    y='GDP',
-    color='Country Code',
+    .agg(
+        Starts=("starter", "sum"),
+        PPG=("points", "mean"),
+        RPG=("rebounds", "mean"),
+        APG=("assists", "mean"),
+    )
+    .reset_index()
+    .sort_values("Starts", ascending=False)
+    .head(5)
 )
 
-''
-''
+cols = st.columns(5)
 
-
-first_year = gdp_df[gdp_df['Year'] == from_year]
-last_year = gdp_df[gdp_df['Year'] == to_year]
-
-st.header(f'GDP in {to_year}', divider='gray')
-
-''
-
-cols = st.columns(4)
-
-for i, country in enumerate(selected_countries):
-    col = cols[i % len(cols)]
+for (_, player), col in zip(starting_five.iterrows(), cols):
 
     with col:
-        first_gdp = first_year[first_year['Country Code'] == country]['GDP'].iat[0] / 1000000000
-        last_gdp = last_year[last_year['Country Code'] == country]['GDP'].iat[0] / 1000000000
 
-        if math.isnan(first_gdp):
-            growth = 'n/a'
-            delta_color = 'off'
-        else:
-            growth = f'{last_gdp / first_gdp:,.2f}x'
-            delta_color = 'normal'
+        st.image(player["athlete_headshot_href"], width=95)
 
-        st.metric(
-            label=f'{country} GDP',
-            value=f'{last_gdp:,.0f}B',
-            delta=growth,
-            delta_color=delta_color
+        st.markdown(
+            f"**{player['athlete_display_name']} ({player['athlete_position_abbreviation']})**"
         )
+
+        st.caption(
+            f"PPG {player['PPG']:.1f} • RPG {player['RPG']:.1f} • APG {player['APG']:.1f}"
+        )
+
+# =====================================================
+# AVERAGE STATS BY POSITION
+# =====================================================
+st.subheader("📊 Average Stats per Player by Position")
+
+pos_avgs = (
+    filtered[
+        filtered["athlete_position_name"].isin(
+            ["Guard", "Forward", "Center"]
+        )
+    ]
+    .groupby("athlete_position_name")
+    .agg(
+        points=("points", "mean"),
+        assists=("assists", "mean"),
+        offensive_rebounds=("offensive_rebounds", "mean"),
+        blocks=("blocks", "mean"),
+        defensive_rebounds=("defensive_rebounds", "mean"),
+        steals=("steals", "mean"),
+    )
+    .reset_index()
+    .rename(columns={"athlete_position_name": "position"})
+)
+
+# Melt into long format
+pos_melt = pos_avgs.melt(
+    id_vars="position",
+    value_vars=[
+        "points",
+        "assists",
+        "offensive_rebounds",
+        "blocks",
+        "defensive_rebounds",
+        "steals",
+    ],
+    var_name="metric",
+    value_name="value",
+)
+
+pos_melt["Metric"] = pos_melt["metric"].map({
+    "points": "Points",
+    "assists": "Assists",
+    "offensive_rebounds": "Off. Rebounds",
+    "blocks": "Blocks",
+    "defensive_rebounds": "Def. Rebounds",
+    "steals": "Steals",
+})
+
+chart_pos = (
+    alt.Chart(pos_melt)
+    .mark_bar(cornerRadiusTopLeft=3, cornerRadiusTopRight=3)
+    .encode(
+        x=alt.X(
+            "position:N",
+            title=None,
+            sort=["Guard", "Forward", "Center"],
+        ),
+        y=alt.Y(
+            "value:Q",
+            title="Average per Player per Game",
+        ),
+        color=alt.Color(
+            "position:N",
+            scale=alt.Scale(
+                domain=["Guard", "Forward", "Center"],
+                range=[
+                    primary_color,
+                    secondary_color,
+                    "#B5B5B5",
+                ],
+            ),
+            legend=None,
+        ),
+        column=alt.Column(
+            "Metric:N",
+            sort=[
+                "Points",
+                "Assists",
+                "Off. Rebounds",
+                "Blocks",
+                "Def. Rebounds",
+                "Steals",
+            ],
+            title=None,
+        ),
+        tooltip=[
+            alt.Tooltip("position:N", title="Position"),
+            alt.Tooltip("Metric:N"),
+            alt.Tooltip("value:Q", format=".2f"),
+        ],
+    )
+    .properties(
+        width=110,
+        height=250,
+        title=f"{team} Average Stats by Position ({season})",
+    )
+)
+
+st.altair_chart(chart_pos, use_container_width=True)
+
+st.divider()
+
+# =====================================================
+# HOME VS AWAY DONUT
+# =====================================================
+
+wins = filtered[filtered["team_winner"] == True]
+
+home = (wins["home_away"] == "home").sum()
+away = (wins["home_away"] == "away").sum()
+total = home + away
+
+if total > 0:
+
+    wr = pd.DataFrame({
+        "Location": ["Home", "Away"],
+        "Win Rate": [
+            home / total * 100,
+            away / total * 100
+        ]
+    })
+
+    donut = (
+        alt.Chart(wr)
+        .mark_arc(innerRadius=70)
+        .encode(
+            theta="Win Rate:Q",
+            color=alt.Color(
+                "Location:N",
+                scale=alt.Scale(
+                    domain=["Home", "Away"],
+                    range=[primary_color, secondary_color]
+                ),
+                legend=alt.Legend(title="Location")
+            ),
+            tooltip=[
+                "Location",
+                alt.Tooltip("Win Rate:Q", format=".1f")
+            ]
+        )
+        .properties(
+            height=320,
+            title=f"{team} Home vs. Away Wins"
+        )
+    )
+
+    st.altair_chart(donut, use_container_width=True)
+
+
+
+# =====================================================
+# PLAYER VS TEAM PERFORMANCE
+# =====================================================
+
+st.divider()
+st.header("🏀 Player vs. Team Performance")
+
+# ---------------- Select Player ----------------
+
+players = (
+    filtered["athlete_display_name"]
+    .dropna()
+    .drop_duplicates()
+    .sort_values()
+    .tolist()
+)
+
+left, right = st.columns([1, 2])
+
+with left:
+
+    player = st.selectbox(
+        "Select Player",
+        players,
+        key="player_compare"
+    )
+
+
+# ---------------- Player Data ----------------
+
+player_df = filtered[
+    filtered["athlete_display_name"] == player
+]
+
+player_photo = player_df["athlete_headshot_href"].iloc[0]
+player_position = player_df["athlete_position_abbreviation"].mode().iloc[0]
+
+player_stats = {
+    "3PT%": (
+        player_df["three_point_field_goals_made"].sum()
+        / player_df["three_point_field_goals_attempted"].sum() * 100
+        if player_df["three_point_field_goals_attempted"].sum() > 0 else 0
+    ),
+    "FG%": (
+        player_df["field_goals_made"].sum()
+        / player_df["field_goals_attempted"].sum() * 100
+        if player_df["field_goals_attempted"].sum() > 0 else 0
+    ),
+    "Blocks": player_df["blocks"].mean(),
+    "Steals": player_df["steals"].mean(),
+    "Assists": player_df["assists"].mean(),
+    "Rebounds": player_df["rebounds"].mean(),
+    "Points": player_df["points"].mean(),
+}
+
+# ---------------- Team Data ----------------
+
+team_stats = {
+    "3PT%": (
+        filtered["three_point_field_goals_made"].sum()
+        / filtered["three_point_field_goals_attempted"].sum() * 100
+        if filtered["three_point_field_goals_attempted"].sum() > 0 else 0
+    ),
+    "FG%": (
+        filtered["field_goals_made"].sum()
+        / filtered["field_goals_attempted"].sum() * 100
+        if filtered["field_goals_attempted"].sum() > 0 else 0
+    ),
+    "Blocks": filtered["blocks"].mean(),
+    "Steals": filtered["steals"].mean(),
+    "Assists": filtered["assists"].mean(),
+    "Rebounds": filtered["rebounds"].mean(),
+    "Points": filtered["points"].mean(),
+}
+
+
+# MAX VALUES FOR NORMALIZATION (TEAM + SEASON)
+
+player_avgs = (
+    filtered.groupby("athlete_display_name")
+    .agg(
+        Points=("points", "mean"),
+        Rebounds=("rebounds", "mean"),
+        Assists=("assists", "mean"),
+        Steals=("steals", "mean"),
+        Blocks=("blocks", "mean"),
+        FG_Made=("field_goals_made", "sum"),
+        FG_Att=("field_goals_attempted", "sum"),
+        Three_Made=("three_point_field_goals_made", "sum"),
+        Three_Att=("three_point_field_goals_attempted", "sum"),
+    )
+)
+
+player_avgs["FG%"] = (
+    player_avgs["FG_Made"] / player_avgs["FG_Att"] * 100
+).fillna(0)
+
+player_avgs["3PT%"] = (
+    player_avgs["Three_Made"] / player_avgs["Three_Att"] * 100
+).fillna(0)
+
+max_values = {
+    "3PT%": player_avgs["3PT%"].max(),
+    "FG%": player_avgs["FG%"].max(),
+    "Blocks": player_avgs["Blocks"].max(),
+    "Steals": player_avgs["Steals"].max(),
+    "Assists": player_avgs["Assists"].max(),
+    "Rebounds": player_avgs["Rebounds"].max(),
+    "Points": player_avgs["Points"].max(),
+}
+### NORMALIZE DATA FOR SPIDER RADAR
+
+def normalize(player_stats, team_stats, max_values):
+
+    player_norm = {}
+    team_norm = {}
+
+    for metric in player_stats:
+
+        max_val = max_values[metric]
+
+        if max_val == 0:
+            player_norm[metric] = 0
+            team_norm[metric] = 0
+        else:
+            player_norm[metric] = (
+                player_stats[metric] / max_val
+            ) * 100
+
+            team_norm[metric] = (
+                team_stats[metric] / max_val
+            ) * 100
+
+    return player_norm, team_norm
+
+player_norm, team_norm = normalize(player_stats, team_stats, max_values)
+
+categories = list(player_stats.keys())
+
+# Close the radar polygons
+player_values = list(player_norm.values())
+player_values.append(player_values[0])
+
+team_values = list(team_norm.values())
+team_values.append(team_values[0])
+
+categories_closed = categories + [categories[0]]
+
+left, right = st.columns([1, 2])
+
+with left:
+
+    player_df = filtered[
+        filtered["athlete_display_name"] == player
+    ]
+
+    player_photo = player_df["athlete_headshot_href"].iloc[0]
+    player_position = player_df["athlete_position_abbreviation"].mode().iloc[0]
+
+    st.image(player_photo, width=300)
+    st.caption(f"{player} {player_position}")
+
+with right:
+
+    fig = go.Figure()
+
+    # Team
+    fig.add_trace(
+        go.Scatterpolar(
+            r=team_values,
+            theta=categories_closed,
+            fill="toself",
+            name="Team Average",
+            line=dict(color=secondary_color),
+            opacity=0.45
+        )
+    )
+
+    # Player
+    fig.add_trace(
+        go.Scatterpolar(
+            r=player_values,
+            theta=categories_closed,
+            fill="toself",
+            name=player,
+            line=dict(color=primary_color, width=3),
+            opacity=0.75
+        )
+    )
+
+    fig.update_layout(
+        polar=dict(
+            radialaxis=dict(
+                visible=True
+            )
+        ),
+        legend=dict(
+            orientation="h",
+            y=1.08,
+            x=0.25
+        ),
+        margin=dict(l=30, r=30, t=20, b=20),
+        height=300
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
