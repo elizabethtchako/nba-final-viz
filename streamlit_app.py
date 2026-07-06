@@ -6,16 +6,33 @@ import plotly.graph_objects as go
 
 st.set_page_config(page_title="NBA Team Dashboard", layout="wide")
 
-df = pd.read_csv("rs_clean.csv")
 
-st.sidebar.title("Filters")
-teams = df["team_display_name"].dropna().drop_duplicates().sort_values().tolist()
-team = st.sidebar.selectbox("Select Team", teams)
+# --- Season type selector (sidebar) ---
+season_type = st.sidebar.selectbox(
+    "Select Season Type",
+    options=["Regular Season", "Playoffs"]
+)
+
+
+# --- Load the appropriate CSV based on selection ---
+@st.cache_data
+def load_data(season_type):
+    if season_type == "Regular Season":
+        return pd.read_csv("rs_clean.csv")
+    else:
+        return pd.read_csv("ps_clean.csv")
+
+df = load_data(season_type)
+
+
+# st.sidebar.title("Filters")
+teams = sorted(df["team_display_name"].unique().tolist())
+team = st.selectbox("Select Team", teams)
 
 seasons = df["season"].dropna().drop_duplicates().sort_values().tolist()
 season = st.sidebar.selectbox("Season", seasons)
 
-filtered = df[(df["team_display_name"]==team)&(df["season"]==season)].copy()
+filtered = df[df['team_display_name'] == team].copy()
 
 if filtered.empty:
     st.warning("No data available.")
