@@ -80,7 +80,7 @@ team_ppg = (
     .mean()
 )
 
-st.subheader(f"{team} - Team Averages")
+st.subheader(f"📊 {team} - Team Averages")
 
 c1, c2, c3, c4, c5 = st.columns(5)
 
@@ -149,32 +149,35 @@ for (_, player), col in zip(starting_five.iterrows(), cols):
         )
 
 # =====================================================
-# AVERAGE STATS BY POSITION
+# HOME VS AWAY + POSITION STATS (COORDINATED VIEWS)
 # =====================================================
+
 st.subheader("📊 Average Stats per Player by Position")
 
-pos_avgs = (
-    filtered[
-        filtered["athlete_position_name"].isin(
-            ["Guard", "Forward", "Center"]
-        )
-    ]
-    .groupby("athlete_position_name")
-    .agg(
-        points=("points", "mean"),
-        assists=("assists", "mean"),
-        offensive_rebounds=("offensive_rebounds", "mean"),
-        blocks=("blocks", "mean"),
-        defensive_rebounds=("defensive_rebounds", "mean"),
-        steals=("steals", "mean"),
-    )
-    .reset_index()
-    .rename(columns={"athlete_position_name": "position"})
+# ----------------------------------------
+# Selection (Donut controls Bar Chart)
+# ----------------------------------------
+
+location_select = alt.selection_point(
+    fields=["Location"],
+    empty=True
 )
 
-# Melt into long format
-pos_melt = pos_avgs.melt(
-    id_vars="position",
+# ----------------------------------------
+# Prepare Position Data
+# ----------------------------------------
+
+pos = filtered[
+    filtered["athlete_position_name"].isin(
+        ["Guard", "Forward", "Center"]
+    )
+].copy()
+
+pos["Location"] = pos["home_away"].str.title()
+
+# Convert to long format
+pos = pos.melt(
+    id_vars=["athlete_position_name", "Location"],
     value_vars=[
         "points",
         "assists",
@@ -187,7 +190,8 @@ pos_melt = pos_avgs.melt(
     value_name="value",
 )
 
-pos_melt["Metric"] = pos_melt["metric"].map({
+# Pretty metric names
+pos["Metric"] = pos["metric"].map({
     "points": "Points",
     "assists": "Assists",
     "offensive_rebounds": "Off. Rebounds",
@@ -196,12 +200,72 @@ pos_melt["Metric"] = pos_melt["metric"].map({
     "steals": "Steals",
 })
 
-chart_pos = (
-    alt.Chart(pos_melt)
-    .mark_bar(cornerRadiusTopLeft=3, cornerRadiusTopRight=3)
+# ----------------------------------------
+# Home vs Away Wins (Donut)
+# ----------------------------------------
+
+wins = filtered[filtered["team_winner"] == True]
+
+home = (wins["home_away"] == "home").sum()
+away = (wins["home_away"] == "away").sum()
+
+wr = pd.DataFrame({
+    "Location": ["Home", "Away"],
+    "Wins": [home, away]
+})
+
+donut = (
+    alt.Chart(wr)
+    .mark_arc(innerRadius=70)
+    .encode(
+        theta=alt.Theta("Wins:Q"),
+        color=alt.condition(
+            location_select,
+            alt.Color(
+                "Location:N",
+                scale=alt.Scale(
+                    domain=["Home", "Away"],
+                    range=[primary_color, secondary_color]
+                ),
+                legend=alt.Legend(title="Location")
+            ),
+            alt.value("#D3D3D3")
+        ),
+        tooltip=[
+            alt.Tooltip("Location:N"),
+            alt.Tooltip("Wins:Q", title="Wins")
+        ]
+    )
+    .add_params(location_select)
+    .properties(
+        width=300,
+        height=300,
+        title=f"{team} Home vs. Away Wins"
+    )
+)
+
+# ----------------------------------------
+# Average Stats by Position (Filtered)
+# ----------------------------------------
+
+bars = (
+    alt.Chart(pos)
+    .transform_filter(location_select)
+    .transform_aggregate(
+        value="mean(value)",
+        groupby=[
+            "athlete_position_name",
+            "Metric",
+            "Location",
+        ],
+    )
+    .mark_bar(
+        cornerRadiusTopLeft=3,
+        cornerRadiusTopRight=3,
+    )
     .encode(
         x=alt.X(
-            "position:N",
+            "athlete_position_name:N",
             title=None,
             sort=["Guard", "Forward", "Center"],
         ),
@@ -210,7 +274,7 @@ chart_pos = (
             title="Average per Player per Game",
         ),
         color=alt.Color(
-            "position:N",
+            "athlete_position_name:N",
             scale=alt.Scale(
                 domain=["Guard", "Forward", "Center"],
                 range=[
@@ -234,67 +298,34 @@ chart_pos = (
             title=None,
         ),
         tooltip=[
-            alt.Tooltip("position:N", title="Position"),
+            alt.Tooltip(
+                "athlete_position_name:N",
+                title="Position"
+            ),
+            alt.Tooltip("Location:N"),
             alt.Tooltip("Metric:N"),
-            alt.Tooltip("value:Q", format=".2f"),
+            alt.Tooltip(
+                "value:Q",
+                title="Average",
+                format=".2f"
+            ),
         ],
     )
     .properties(
         width=110,
-        height=250,
-        title=f"{team} Average Stats by Position ({season})",
+        height=300,
+        title=f"{team} Average Stats by Position ({season})"
     )
 )
 
-st.altair_chart(chart_pos, use_container_width=True)
+# ----------------------------------------
+# Display Coordinated Visualization
+# ----------------------------------------
 
-st.divider()
-
-# =====================================================
-# HOME VS AWAY DONUT
-# =====================================================
-
-wins = filtered[filtered["team_winner"] == True]
-
-home = (wins["home_away"] == "home").sum()
-away = (wins["home_away"] == "away").sum()
-total = home + away
-
-if total > 0:
-
-    wr = pd.DataFrame({
-        "Location": ["Home", "Away"],
-        "Win Rate": [
-            home / total * 100,
-            away / total * 100
-        ]
-    })
-
-    donut = (
-        alt.Chart(wr)
-        .mark_arc(innerRadius=70)
-        .encode(
-            theta="Win Rate:Q",
-            color=alt.Color(
-                "Location:N",
-                scale=alt.Scale(
-                    domain=["Home", "Away"],
-                    range=[primary_color, secondary_color]
-                ),
-                legend=alt.Legend(title="Location")
-            ),
-            tooltip=[
-                "Location",
-                alt.Tooltip("Win Rate:Q", format=".1f")
-            ]
-        )
-        .properties(
-            height=320,
-            title=f"{team} Home vs. Away Wins"
-        )
-    )
-
-    st.altair_chart(donut, use_container_width=True)
+st.altair_chart(
+    donut | bars,
+    use_container_width=True
+)
 
 
 
@@ -303,7 +334,9 @@ if total > 0:
 # =====================================================
 
 st.divider()
-st.header("🏀 Player vs. Team Performance")
+st.header("Individual Player Performance 🏀")
+st.subheader("How do player compare to their counterparts?")
+st.caption(f"Select a player from {team.title()} and compare their perfromacne metrics against the league and their team.")
 
 # ---------------- Select Player ----------------
 
@@ -468,7 +501,7 @@ categories_closed = categories + [categories[0]]
 
 left, right = st.columns([1, 2])
 
-with left:
+with right:
 
     player_df = filtered[
         filtered["athlete_display_name"] == player
@@ -476,11 +509,12 @@ with left:
 
     player_photo = player_df["athlete_headshot_href"].iloc[0]
     player_position = player_df["athlete_position_abbreviation"].mode().iloc[0]
+    player_number = player_df["athlete_jersey"].iloc[0]
 
-    st.image(player_photo, width=300)
-    st.caption(f"{player} {player_position}")
+    st.image(player_photo, width=375)
+    st.caption(f"{player} • {player_position} • Jersey #{player_number:.0f}")
 
-with right:
+with left:
 
     fig = go.Figure()
     # NBA Average
