@@ -6,25 +6,6 @@ import plotly.graph_objects as go
 
 st.set_page_config(page_title="NBA Team Dashboard", layout="wide")
 
-df = pd.read_csv("rs_clean.csv")
-
-st.sidebar.title("Filters")
-teams = df["team_display_name"].dropna().drop_duplicates().sort_values().tolist()
-team = st.sidebar.selectbox("Select Team", teams)
-
-seasons = df["season"].dropna().drop_duplicates().sort_values().tolist()
-season = st.sidebar.selectbox("Season", seasons)
-
-filtered = df[(df["team_display_name"]==team)&(df["season"]==season)].copy()
-
-if filtered.empty:
-    st.warning("No data available.")
-    st.stop()
-
-logo = filtered["team_logo"].iloc[0]
-primary_color = "#" + str(filtered["team_color"].iloc[0]).zfill(6)
-secondary_color = "#" + str(filtered["team_alternate_color"].iloc[0]).zfill(6)
-
 # =====================================================
 # NBA HEADER
 # =====================================================
@@ -42,6 +23,40 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
+
+
+# --- Season type selector (sidebar) ---
+season_type = st.sidebar.selectbox(
+    "Select Season Type",
+    options=["Regular Season", "Playoffs"]
+)
+
+# --- Load the appropriate CSV based on selection ---
+@st.cache_data
+def load_data(season_type):
+    if season_type == "Regular Season":
+        return pd.read_csv("rs_clean.csv")
+    else:
+        return pd.read_csv("ps_clean.csv")
+
+df = load_data(season_type)
+
+# st.sidebar.title("Filters")
+teams = sorted(df["team_display_name"].unique().tolist())
+team = st.selectbox("Select Team", teams)
+
+seasons = df["season"].dropna().drop_duplicates().sort_values().tolist()
+# season = st.sidebar.selectbox("Season", seasons)
+
+filtered = df[df['team_display_name'] == team].copy()
+
+if filtered.empty:
+    st.warning("No data available.")
+    st.stop()
+
+logo = filtered["team_logo"].iloc[0]
+primary_color = "#" + str(filtered["team_color"].iloc[0]).zfill(6)
+secondary_color = "#" + str(filtered["team_alternate_color"].iloc[0]).zfill(6)
 
 # -----------------------------------------------------
 # League Team PPG (remove duplicate player rows)
@@ -225,7 +240,7 @@ donut = (
                 "Location:N",
                 scale=alt.Scale(
                     domain=["Home", "Away"],
-                    range=[primary_color, secondary_color]
+                    range=["red", "blue"]
                 ),
                 legend=alt.Legend(title="Location")
             ),
@@ -276,14 +291,15 @@ bars = (
         color=alt.Color(
             "athlete_position_name:N",
             scale=alt.Scale(
-                domain=["Guard", "Forward", "Center"],
-                range=[
-                    primary_color,
-                    secondary_color,
-                    "#B5B5B5",
-                ],
+            domain=["Guard", "Forward", "Center"],
+            range=[
+                "red",
+                "blue",
+                "#B5B5B5",
+            ],
             ),
             legend=None,
+            
         ),
         column=alt.Column(
             "Metric:N",
@@ -314,7 +330,7 @@ bars = (
     .properties(
         width=110,
         height=300,
-        title=f"{team} Average Stats by Position ({season})"
+        title=f"{team} Average Stats by Position"
     )
 )
 
@@ -322,11 +338,9 @@ bars = (
 # Display Coordinated Visualization
 # ----------------------------------------
 
-st.altair_chart(
-    donut | bars,
-    use_container_width=True
-)
+combined = alt.hconcat(donut, bars).resolve_scale(color="independent")
 
+st.altair_chart(combined, use_container_width=True)
 
 
 # =====================================================
