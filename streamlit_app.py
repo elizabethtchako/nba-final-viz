@@ -230,8 +230,8 @@ chart_pos = (
             scale=alt.Scale(
                 domain=["Guard", "Forward", "Center"],
                 range=[
-                    primary_color,
-                    secondary_color,
+                    'red',
+                    'blue',
                     "#B5B5B5",
                 ],
             ),
@@ -295,7 +295,7 @@ if total > 0:
                 "Location:N",
                 scale=alt.Scale(
                     domain=["Home", "Away"],
-                    range=[primary_color, secondary_color]
+                    range=["blue", "red"]
                 ),
                 legend=alt.Legend(title="Location")
             ),
