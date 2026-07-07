@@ -13,35 +13,6 @@ season_type = st.sidebar.selectbox(
     options=["Regular Season", "Playoffs"]
 )
 
-
-# --- Load the appropriate CSV based on selection ---
-@st.cache_data
-def load_data(season_type):
-    if season_type == "Regular Season":
-        return pd.read_csv("rs_clean.csv")
-    else:
-        return pd.read_csv("ps_clean.csv")
-
-df = load_data(season_type)
-
-
-# st.sidebar.title("Filters")
-teams = sorted(df["team_display_name"].unique().tolist())
-team = st.selectbox("Select Team", teams)
-
-seasons = df["season"].dropna().drop_duplicates().sort_values().tolist()
-season = st.sidebar.selectbox("Season", seasons)
-
-filtered = df[df['team_display_name'] == team].copy()
-
-if filtered.empty:
-    st.warning("No data available.")
-    st.stop()
-
-logo = filtered["team_logo"].iloc[0]
-primary_color = "#" + str(filtered["team_color"].iloc[0]).zfill(6)
-secondary_color = "#" + str(filtered["team_alternate_color"].iloc[0]).zfill(6)
-
 # =====================================================
 # NBA HEADER
 # =====================================================
@@ -59,6 +30,34 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
+
+
+# --- Load the appropriate CSV based on selection ---
+@st.cache_data
+def load_data(season_type):
+    if season_type == "Regular Season":
+        return pd.read_csv("rs_clean.csv")
+    else:
+        return pd.read_csv("ps_clean.csv")
+
+df = load_data(season_type)
+
+
+# st.sidebar.title("Filters")
+teams = sorted(df["team_display_name"].unique().tolist())
+team = st.selectbox("Select Team", teams)
+
+season = df["season"].dropna().drop_duplicates().sort_values().tolist()
+
+filtered = df[df['team_display_name'] == team].copy()
+
+if filtered.empty:
+    st.warning("No data available.")
+    st.stop()
+
+logo = filtered["team_logo"].iloc[0]
+primary_color = "#" + str(filtered["team_color"].iloc[0]).zfill(6)
+secondary_color = "#" + str(filtered["team_alternate_color"].iloc[0]).zfill(6)
 
 # -----------------------------------------------------
 # League Team PPG (remove duplicate player rows)
@@ -259,7 +258,7 @@ chart_pos = (
     .properties(
         width=110,
         height=250,
-        title=f"{team} Average Stats by Position ({season})",
+        title=f"{team} Average Stats by Position",
     )
 )
 
