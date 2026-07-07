@@ -6,24 +6,12 @@ import plotly.graph_objects as go
 
 st.set_page_config(page_title="NBA Team Dashboard", layout="wide")
 
-df = pd.read_csv("rs_clean.csv")
 
-st.sidebar.title("Filters")
-teams = df["team_display_name"].dropna().drop_duplicates().sort_values().tolist()
-team = st.sidebar.selectbox("Select Team", teams)
-
-seasons = df["season"].dropna().drop_duplicates().sort_values().tolist()
-season = st.sidebar.selectbox("Season", seasons)
-
-filtered = df[(df["team_display_name"]==team)&(df["season"]==season)].copy()
-
-if filtered.empty:
-    st.warning("No data available.")
-    st.stop()
-
-logo = filtered["team_logo"].iloc[0]
-primary_color = "#" + str(filtered["team_color"].iloc[0]).zfill(6)
-secondary_color = "#" + str(filtered["team_alternate_color"].iloc[0]).zfill(6)
+# --- Season type selector (sidebar) ---
+season_type = st.sidebar.selectbox(
+    "Select Season Type",
+    options=["Regular Season", "Playoffs"]
+)
 
 # =====================================================
 # NBA HEADER
@@ -42,6 +30,34 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
+
+
+# --- Load the appropriate CSV based on selection ---
+@st.cache_data
+def load_data(season_type):
+    if season_type == "Regular Season":
+        return pd.read_csv("rs_clean.csv")
+    else:
+        return pd.read_csv("ps_clean.csv")
+
+df = load_data(season_type)
+
+
+# st.sidebar.title("Filters")
+teams = sorted(df["team_display_name"].unique().tolist())
+team = st.selectbox("Select Team", teams)
+
+season = df["season"].dropna().drop_duplicates().sort_values().tolist()
+
+filtered = df[df['team_display_name'] == team].copy()
+
+if filtered.empty:
+    st.warning("No data available.")
+    st.stop()
+
+logo = filtered["team_logo"].iloc[0]
+primary_color = "#" + str(filtered["team_color"].iloc[0]).zfill(6)
+secondary_color = "#" + str(filtered["team_alternate_color"].iloc[0]).zfill(6)
 
 # -----------------------------------------------------
 # League Team PPG (remove duplicate player rows)
@@ -278,8 +294,8 @@ bars = (
             scale=alt.Scale(
                 domain=["Guard", "Forward", "Center"],
                 range=[
-                    primary_color,
-                    secondary_color,
+                    'red',
+                    'blue',
                     "#B5B5B5",
                 ],
             ),
@@ -313,8 +329,8 @@ bars = (
     )
     .properties(
         width=110,
-        height=300,
-        title=f"{team} Average Stats by Position ({season})"
+        height=250,
+        title=f"{team} Average Stats by Position",
     )
 )
 
@@ -322,10 +338,39 @@ bars = (
 # Display Coordinated Visualization
 # ----------------------------------------
 
-st.altair_chart(
-    donut | bars,
-    use_container_width=True
-)
+    wr = pd.DataFrame({
+        "Location": ["Home", "Away"],
+        "Win Rate": [
+            home / total * 100,
+            away / total * 100
+        ]
+    })
+
+    donut = (
+        alt.Chart(wr)
+        .mark_arc(innerRadius=70)
+        .encode(
+            theta="Win Rate:Q",
+            color=alt.Color(
+                "Location:N",
+                scale=alt.Scale(
+                    domain=["Home", "Away"],
+                    range=["blue", "red"]
+                ),
+                legend=alt.Legend(title="Location")
+            ),
+            tooltip=[
+                "Location",
+                alt.Tooltip("Win Rate:Q", format=".1f")
+            ]
+        )
+        .properties(
+            height=320,
+            title=f"{team} Home vs. Away Wins"
+        )
+    )
+
+    st.altair_chart(donut, use_container_width=True)
 
 
 
