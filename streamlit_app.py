@@ -114,11 +114,11 @@ st.divider()
 # =====================================================
 title_col, logo_col = st.columns([8,1])
 with title_col:
-    st.markdown(f"<h1 style='color:{primary_color};'>{team.upper()}</h1>", unsafe_allow_html=True)
+    st.markdown(f"<h1 style='color:'white;'>{team.upper()}</h1>", unsafe_allow_html=True)
 with logo_col:
     st.image(logo, width=90)
 
-st.markdown(f"<div style='height:10px;background:linear-gradient(to right,{primary_color},{secondary_color});border-radius:5px;'></div>", unsafe_allow_html=True)
+st.markdown(f"<div style='height:10px;background:linear-gradient(to right,{'white'});border-radius:5px;'></div>", unsafe_allow_html=True)
 
 
 # =====================================================
