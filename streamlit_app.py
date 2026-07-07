@@ -549,7 +549,7 @@ with left:
             theta=categories_closed,
             fill="toself",
             name="Team Average",
-            line=dict(color=secondary_color),
+            line=dict(color='red'),
             opacity=0.45
         )
     )
@@ -561,7 +561,7 @@ with left:
             theta=categories_closed,
             fill="toself",
             name=player,
-            line=dict(color=primary_color, width=3),
+            line=dict(color='blue', width=3),
             opacity=0.75
         )
     )
