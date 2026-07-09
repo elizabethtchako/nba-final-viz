@@ -118,7 +118,7 @@ with title_col:
 with logo_col:
     st.image(logo, width=90)
 
-st.markdown(f"<div style='height:10px;background:linear-gradient(to right,{'white'});border-radius:5px;'></div>", unsafe_allow_html=True)
+st.markdown(f"<div style='height:10px;background:linear-gradient(to right,{primary_color},{secondary_color});border-radius:5px;'></div>", unsafe_allow_html=True)
 
 
 # =====================================================
@@ -219,7 +219,11 @@ pos["Metric"] = pos["metric"].map({
 # Home vs Away Wins (Donut)
 # ----------------------------------------
 
-wins = filtered[filtered["team_winner"] == True]
+# This prevents duplicates from being counted since it's organized by individual players for each game
+games = filtered.drop_duplicates(subset=["game_id"])
+
+wins = games[games["team_winner"] == True]
+
 
 home = (wins["home_away"] == "home").sum()
 away = (wins["home_away"] == "away").sum()
@@ -229,34 +233,29 @@ wr = pd.DataFrame({
     "Wins": [home, away]
 })
 
+wr["Wins_display"] = wr["Wins"].replace(0, 0.0001)  # tiny sliver so 0 still shows a thin wedge
+
 donut = (
     alt.Chart(wr)
     .mark_arc(innerRadius=70)
     .encode(
-        theta=alt.Theta("Wins:Q"),
+        theta=alt.Theta("Wins_display:Q"),
         color=alt.condition(
             location_select,
             alt.Color(
                 "Location:N",
-                scale=alt.Scale(
-                    domain=["Home", "Away"],
-                    range=["red", "blue"]
-                ),
+                scale=alt.Scale(domain=["Home", "Away"], range=["red", "blue"]),
                 legend=alt.Legend(title="Location")
             ),
             alt.value("#D3D3D3")
         ),
         tooltip=[
             alt.Tooltip("Location:N"),
-            alt.Tooltip("Wins:Q", title="Wins")
+            alt.Tooltip("Wins:Q", title="Wins")  # tooltip still shows the REAL value, 0
         ]
     )
     .add_params(location_select)
-    .properties(
-        width=300,
-        height=300,
-        title=f"{team} Home vs. Away Wins"
-    )
+    .properties(width=300, height=300, title=f"{team} Home vs. Away Wins")
 )
 
 # ----------------------------------------
@@ -293,8 +292,8 @@ bars = (
             scale=alt.Scale(
             domain=["Guard", "Forward", "Center"],
             range=[
-                "red",
-                "blue",
+                "black",
+                "green",
                 "#B5B5B5",
             ],
             ),
