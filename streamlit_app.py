@@ -41,23 +41,6 @@ def load_data(season_type):
 
 df = load_data(season_type)
 
-# st.sidebar.title("Filters")
-teams = sorted(df["team_display_name"].unique().tolist())
-team = st.selectbox("Select Team", teams)
-
-seasons = df["season"].dropna().drop_duplicates().sort_values().tolist()
-# season = st.sidebar.selectbox("Season", seasons)
-
-filtered = df[df['team_display_name'] == team].copy()
-
-if filtered.empty:
-    st.warning("No data available.")
-    st.stop()
-
-logo = filtered["team_logo"].iloc[0]
-primary_color = "#" + str(filtered["team_color"].iloc[0]).zfill(6)
-secondary_color = "#" + str(filtered["team_alternate_color"].iloc[0]).zfill(6)
-
 # -----------------------------------------------------
 # League Team PPG (remove duplicate player rows)
 # -----------------------------------------------------
@@ -81,6 +64,22 @@ c3.metric("APG", f"{df['assists'].mean():.1f}")
 c4.metric("SPG", f"{df['steals'].mean():.1f}")
 c5.metric("BPG", f"{df['blocks'].mean():.1f}")
 
+# st.sidebar.title("Filters")
+teams = sorted(df["team_display_name"].unique().tolist())
+team = st.selectbox("Select Team", teams)
+
+seasons = df["season"].dropna().drop_duplicates().sort_values().tolist()
+# season = st.sidebar.selectbox("Season", seasons)
+
+filtered = df[df['team_display_name'] == team].copy()
+
+if filtered.empty:
+    st.warning("No data available.")
+    st.stop()
+
+logo = filtered["team_logo"].iloc[0]
+primary_color = "#" + str(filtered["team_color"].iloc[0]).zfill(6)
+secondary_color = "#" + str(filtered["team_alternate_color"].iloc[0]).zfill(6)
 
 # -----------------------------------------------------
 # Selected Team PPG
@@ -244,7 +243,7 @@ donut = (
             location_select,
             alt.Color(
                 "Location:N",
-                scale=alt.Scale(domain=["Home", "Away"], range=["red", "blue"]),
+                scale=alt.Scale(domain=["Home", "Away"], range=[primary_color, secondary_color]),
                 legend=alt.Legend(title="Location")
             ),
             alt.value("#D3D3D3")
@@ -290,16 +289,12 @@ bars = (
         color=alt.Color(
             "athlete_position_name:N",
             scale=alt.Scale(
-            domain=["Guard", "Forward", "Center"],
-            range=[
-                "black",
-                "green",
-                "#B5B5B5",
-            ],
+                domain=["Guard", "Forward", "Center"],
+                scheme="tableau10",   # or "category10", "set1", "dark2", etc.
             ),
-            legend=None,
-            
-        ),
+                legend=None,
+                
+            ),
         column=alt.Column(
             "Metric:N",
             sort=[
